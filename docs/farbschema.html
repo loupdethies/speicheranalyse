@@ -1,0 +1,314 @@
+<title>Speicheranalyse Farbschema</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+/* Layout: eine Spalte wie ein Messprotokoll – Laufwerksbalken oben, Treemap als Hauptfläche, Details darunter */
+:root {
+  --bg: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11,11,11,0.10);
+  --free: #e1e0d9;
+  --free-ink: #c3c2b7;
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100;
+  --c5: #e87ba4; --c6: #008300; --c7: #6250d6; --c-other: #898781;
+  --font-sans: "IBM Plex Sans", system-ui, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --free: #2c2c2a; --free-ink: #45453f;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
+    --c5: #d55181; --c6: #008300; --c7: #9085e9; --c-other: #898781;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --free: #2c2c2a; --free-ink: #45453f;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
+  --c5: #d55181; --c6: #008300; --c7: #9085e9; --c-other: #898781;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 48px;
+}
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 40px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: 28px; font-weight: 600; margin: 0; text-wrap: balance; }
+h2 { font-size: 18px; font-weight: 600; margin: 0; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+.badge { display: inline-block; font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--axis); color: var(--ink-2); vertical-align: middle; margin-left: 8px; }
+section { display: grid; gap: 14px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 20px; min-width: 0; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Palette */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.sw { display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: center; }
+.chip { width: 40px; height: 40px; border-radius: 6px; }
+.chip.free { background: repeating-linear-gradient(45deg, var(--free), var(--free) 4px, var(--free-ink) 4px, var(--free-ink) 5px); }
+.sw b { font-weight: 500; display: block; }
+.sw span { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+/* Laufwerksbalken */
+.drive-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.drive-head .big { font-size: 22px; font-weight: 600; }
+.bar { display: flex; gap: 2px; height: 28px; margin-top: 12px; }
+.bar > div { height: 100%; min-width: 2px; cursor: default; }
+.bar > div:first-child { border-radius: 4px 0 0 4px; }
+.bar > div:last-child { border-radius: 0 4px 4px 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; font-size: 13px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+/* Treemap */
+#treemap { width: 100%; height: 440px; position: relative; }
+#treemap svg { display: block; }
+.crumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-2); }
+.crumbs button { font: inherit; background: none; border: 1px solid var(--axis); color: var(--ink); border-radius: 4px; padding: 2px 10px; cursor: pointer; }
+.crumbs button:focus-visible, .tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.tile { cursor: pointer; }
+.tile.leaf { cursor: default; }
+
+/* Dateitypen */
+.hbar { display: grid; grid-template-columns: minmax(120px, 170px) 1fr 70px; gap: 8px 12px; align-items: center; font-size: 13px; }
+.hbar .track { height: 14px; }
+.hbar .fill { height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+.hbar .val { text-align: right; color: var(--ink-2); }
+
+/* Tabelle */
+details summary { cursor: pointer; font-weight: 500; }
+.tablewrap { overflow-x: auto; margin-top: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); }
+td.r, th.r { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+#tip { position: fixed; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--ring); border-radius: 6px; padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.12); z-index: 20; max-width: 260px; }
+#tip .t { font-weight: 600; }
+#tip .s { color: var(--ink-2); font-family: var(--font-mono); font-size: 12px; }
+.note { font-size: 13px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Speicheranalyse · Vorschau</div>
+    <h1>Farbschema und Ansichten für Laufwerk C:</h1>
+    <p>So soll der Bericht später aussehen. Gesamtgröße und freier Platz stammen von deinem Laufwerk C: (218 GB, 61 GB frei). Die Aufteilung der belegten 156 GB auf Kategorien ist ein <strong>Beispiel</strong>, bis der Scanner aus Phase 1 echte Werte liefert.</p>
+  </header>
+
+  <section>
+    <h2>Kategorien und Farben</h2>
+    <div class="panel"><div class="swatches" id="swatches"></div></div>
+    <p class="note">Jede Kategorie hat eine feste Farbe, auch wenn sie leer ist. Geprüft auf Farbenblindheit (Protanopie, Deuteranopie, Tritanopie) in hellem und dunklem Modus. Beschriftungen stehen immer in Textfarbe, nie in der Kategoriefarbe.</p>
+  </section>
+
+  <section>
+    <h2>1 · Laufwerksübersicht <span class="badge">Beispieldaten</span></h2>
+    <div class="panel">
+      <div class="drive-head">
+        <div><span class="big">C:</span> <span class="num" style="color:var(--ink-2)">156 GB von 218 GB belegt</span></div>
+        <div class="num" style="color:var(--ink-2)">61 GB frei · 28 %</div>
+      </div>
+      <div class="bar" id="bar" role="img" aria-label="Gestapelter Balken der Speicherbelegung nach Kategorie"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Treemap mit Drill-down <span class="badge">Beispieldaten</span></h2>
+    <p>Fläche entspricht Größe. Klick auf eine Kategorie öffnet ihre Ordner.</p>
+    <div class="panel">
+      <div class="crumbs" id="crumbs"></div>
+      <div id="treemap" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · Eigene Dateien nach Typ <span class="badge">Beispieldaten</span></h2>
+    <div class="panel"><div class="hbar" id="types"></div></div>
+  </section>
+
+  <section>
+    <details class="panel">
+      <summary>Tabellenansicht aller Werte</summary>
+      <div class="tablewrap"><table id="table"><thead><tr><th>Kategorie</th><th>Bereich</th><th class="r">GB</th><th class="r">Anteil</th></tr></thead><tbody></tbody></table></div>
+    </details>
+  </section>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+const CATS = [
+  { id: 'os',    name: 'Betriebssystem',     color: '--c1', desc: 'C:\\Windows', hex: ['#2a78d6', '#3987e5'],
+    children: [['WinSxS', 10], ['System32', 7], ['DriverStore (Treiber)', 5], ['Übriges Windows', 10]] },
+  { id: 'prog',  name: 'Programme',          color: '--c2', desc: 'Program Files, WindowsApps', hex: ['#eb6834', '#d95926'],
+    children: [['Program Files', 14], ['Program Files (x86)', 7], ['WindowsApps', 3], ['AppData\\Local\\Programs', 2]] },
+  { id: 'user',  name: 'Eigene Dateien',     color: '--c3', desc: 'Dokumente, Bilder, Downloads …', hex: ['#1baf7a', '#199e70'],
+    children: [['Dokumente', 6], ['Bilder', 4], ['Videos', 3], ['CAD & Elektronik', 2], ['Sonstige', 2], ['Archive & Installer', 1.5], ['Code', 1], ['Audio', 0.5]] },
+  { id: 'cache', name: 'Caches & Temp',      color: '--c4', desc: 'löschbar', hex: ['#eda100', '#c98500'],
+    children: [['Browser-Caches', 1.5], ['Windows Update', 1.5], ['Temp', 1], ['Paket-Caches (npm, uv)', 1]] },
+  { id: 'data',  name: 'Programmdaten',      color: '--c5', desc: 'AppData, ProgramData', hex: ['#e87ba4', '#d55181'],
+    children: [['AppData\\Local', 12], ['ProgramData', 8], ['AppData\\Roaming', 5]] },
+  { id: 'dev',   name: 'Entwicklung',        color: '--c6', desc: 'Projekte, node_modules, .git', hex: ['#008300', '#008300'],
+    children: [['projects', 2.2], ['node_modules', 1.4], ['.git & Build', 1.0], ['Arduino15', 0.4]] },
+  { id: 'sys',   name: 'System-reserviert',  color: '--c7', desc: 'pagefile, Installer-Cache', hex: ['#6250d6', '#9085e9'],
+    children: [['Installer-Cache', 16.8], ['pagefile.sys', 9], ['Wiederherstellungspunkte', 6], ['hiberfil.sys', 3.2]] },
+  { id: 'other', name: 'Sonstiges / kein Zugriff', color: '--c-other', desc: 'nicht zugeordnet', hex: ['#898781', '#898781'],
+    children: [['Nicht zugeordnet', 5], ['Kein Zugriff', 3]] },
+];
+const FREE = 61, TOTAL = 218;
+const TYPE_COLORS = ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c-other'];
+const TYPES = [['Dokumente', 6], ['Bilder', 4], ['Videos', 3], ['Audio', 0.5], ['Archive & Installer', 1.5], ['Code', 1], ['CAD & Elektronik', 2], ['Sonstige', 2]];
+
+const css = v => `var(${v})`;
+const sum = c => c.children.reduce((a, [, v]) => a + v, 0);
+const fmt = v => v.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' GB';
+const pct = v => (v / TOTAL * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' %';
+
+const tip = document.getElementById('tip');
+function showTip(e, title, sub) {
+  tip.innerHTML = `<div class="t"></div><div class="s"></div>`;
+  tip.querySelector('.t').textContent = title;
+  tip.querySelector('.s').textContent = sub;
+  tip.hidden = false; moveTip(e);
+}
+function moveTip(e) {
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + w > innerWidth - 8) x = e.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = e.clientY - h - pad;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+
+// Farbfelder
+const sw = document.getElementById('swatches');
+CATS.forEach(c => {
+  const el = document.createElement('div'); el.className = 'sw';
+  el.innerHTML = `<div class="chip" style="background:${css(c.color)}"></div><div><b></b><span></span></div>`;
+  el.querySelector('b').textContent = c.name;
+  el.querySelector('span').textContent = `${c.hex[0]} · ${c.hex[1]}`;
+  sw.appendChild(el);
+});
+{ const el = document.createElement('div'); el.className = 'sw';
+  el.innerHTML = `<div class="chip free"></div><div><b>Frei</b><span>schraffiert</span></div>`; sw.appendChild(el); }
+
+// Laufwerksbalken + Legende
+const bar = document.getElementById('bar'), legend = document.getElementById('legend');
+[...CATS.map(c => ({ name: c.name, v: sum(c), color: css(c.color) })), { name: 'Frei', v: FREE, free: true }].forEach(s => {
+  const seg = document.createElement('div');
+  seg.style.flex = `${s.v} 0 0`;
+  if (s.free) seg.className = 'chip free', seg.style.width = 'auto', seg.style.height = '100%', seg.style.borderRadius = '0 4px 4px 0';
+  else seg.style.background = s.color;
+  seg.addEventListener('mousemove', e => showTip(e, s.name, `${fmt(s.v)} · ${pct(s.v)}`));
+  seg.addEventListener('mouseleave', hideTip);
+  bar.appendChild(seg);
+  const li = document.createElement('span');
+  li.innerHTML = `<i></i><span></span> <span class="num"></span>`;
+  const i = li.querySelector('i');
+  if (s.free) i.className = 'chip free', i.style.width = '10px', i.style.height = '10px'; else i.style.background = s.color;
+  li.children[1].textContent = s.name; li.children[2].textContent = fmt(s.v);
+  legend.appendChild(li);
+});
+
+// Treemap
+const tmEl = document.getElementById('treemap'), crumbs = document.getElementById('crumbs');
+let focus = null;
+function drawTreemap() {
+  tmEl.innerHTML = '';
+  const W = tmEl.clientWidth, H = tmEl.clientHeight;
+  const data = focus
+    ? { name: focus.name, children: focus.children.map(([n, v]) => ({ name: n, value: v, cat: focus })) }
+    : { name: 'C:', children: CATS.map(c => ({ name: c.name, cat: c, children: c.children.map(([n, v]) => ({ name: n, value: v, cat: c })) })) };
+  const root = d3.hierarchy(data).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
+  d3.treemap().size([W, H]).paddingInner(2).paddingOuter(0).paddingTop(focus ? 0 : 0).round(true)(root);
+  const svg = d3.select(tmEl).append('svg').attr('width', W).attr('height', H).attr('role', 'img')
+    .attr('aria-label', focus ? `Treemap von ${focus.name}` : 'Treemap aller Kategorien');
+  const nodes = focus ? root.leaves() : root.children;
+  const g = svg.selectAll('g').data(nodes).join('g').attr('transform', d => `translate(${d.x0},${d.y0})`);
+  g.each(function (d) {
+    const sel = d3.select(this), w = d.x1 - d.x0, h = d.y1 - d.y0, c = d.data.cat;
+    if (!focus && d.children) {
+      // Unterflächen der Kategorie, mit 2px Abstand
+      d.children.forEach(ch => {
+        sel.append('rect').attr('x', ch.x0 - d.x0).attr('y', ch.y0 - d.y0)
+          .attr('width', Math.max(0, ch.x1 - ch.x0)).attr('height', Math.max(0, ch.y1 - ch.y0))
+          .attr('rx', 3).style('fill', css(c.color)).style('opacity', 0.92);
+      });
+    } else {
+      sel.append('rect').attr('width', w).attr('height', h).attr('rx', 3).style('fill', css(c.color));
+    }
+    const hit = sel.append('rect').attr('width', w).attr('height', h).attr('class', 'tile' + (focus ? ' leaf' : ''))
+      .style('fill', 'transparent').attr('tabindex', focus ? null : 0)
+      .attr('aria-label', `${d.data.name}, ${fmt(d.value)}`);
+    hit.on('mousemove', e => showTip(e, d.data.name, `${fmt(d.value)} · ${pct(d.value)}${focus ? ' · ' + c.name : ''}`)).on('mouseleave', hideTip);
+    if (!focus) {
+      const open = () => { focus = c; hideTip(); render(); };
+      hit.on('click', open).on('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    }
+    // Beschriftung als Plakette in Textfarbe auf Fläche
+    if (w > 70 && h > 34) {
+      const lab = sel.append('g').attr('transform', 'translate(6,6)').style('pointer-events', 'none');
+      const t1 = lab.append('text').attr('x', 6).attr('y', 14).style('fill', 'var(--ink)').style('font-size', '12px').style('font-weight', 600).text(d.data.name);
+      const t2 = lab.append('text').attr('x', 6).attr('y', 29).style('fill', 'var(--ink-2)').style('font-size', '11px').style('font-family', 'var(--font-mono)').text(fmt(d.value));
+      const tw = Math.max(t1.node().getComputedTextLength(), t2.node().getComputedTextLength()) + 12;
+      if (tw > w - 12) { t1.text(trim(d.data.name, w - 24, t1.node())); }
+      const bw = Math.min(w - 12, Math.max(t1.node().getComputedTextLength(), t2.node().getComputedTextLength()) + 12);
+      lab.insert('rect', 'text').attr('width', bw).attr('height', h > 44 ? 36 : 20).attr('rx', 3).style('fill', 'var(--surface)').style('opacity', 0.92);
+      if (h <= 44) t2.remove();
+    }
+  });
+}
+function trim(s, max, node) {
+  node.textContent = s;
+  while (s.length > 3 && node.getComputedTextLength() > max) { s = s.slice(0, -1); node.textContent = s + '…'; }
+  return node.textContent;
+}
+function render() {
+  crumbs.innerHTML = '';
+  const b = document.createElement('button'); b.textContent = 'C: (alle Kategorien)'; b.id = 'crumb-root';
+  b.disabled = !focus; b.style.opacity = focus ? 1 : 0.6;
+  b.onclick = () => { focus = null; render(); };
+  crumbs.appendChild(b);
+  if (focus) { const s = document.createElement('span'); s.textContent = `› ${focus.name} · ${fmt(sum(focus))}`; crumbs.appendChild(s); }
+  drawTreemap();
+}
+render();
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawTreemap, 120); });
+
+// Dateitypen
+const types = document.getElementById('types');
+const tmax = Math.max(...TYPES.map(t => t[1]));
+TYPES.forEach(([n, v], i) => {
+  const lab = document.createElement('div'); lab.textContent = n;
+  const track = document.createElement('div'); track.className = 'track';
+  const fill = document.createElement('div'); fill.className = 'fill';
+  fill.style.width = (v / tmax * 100) + '%'; fill.style.background = css(TYPE_COLORS[i]);
+  fill.addEventListener('mousemove', e => showTip(e, n, fmt(v))); fill.addEventListener('mouseleave', hideTip);
+  track.appendChild(fill);
+  const val = document.createElement('div'); val.className = 'val num'; val.textContent = fmt(v);
+  types.append(lab, track, val);
+});
+
+// Tabelle
+const tb = document.querySelector('#table tbody');
+CATS.forEach(c => c.children.forEach(([n, v]) => {
+  const tr = document.createElement('tr');
+  [c.name, n, v.toLocaleString('de-DE', { maximumFractionDigits: 1 }), pct(v)].forEach((x, i) => {
+    const td = document.createElement('td'); td.textContent = x; if (i > 1) td.className = 'r'; tr.appendChild(td);
+  });
+  tb.appendChild(tr);
+}));
+{ const tr = document.createElement('tr'); ['Frei', '–', '61', pct(61)].forEach((x, i) => { const td = document.createElement('td'); td.textContent = x; if (i > 1) td.className = 'r'; tr.appendChild(td); }); tb.appendChild(tr); }
+</script>

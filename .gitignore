@@ -1,0 +1,16 @@
+# Eigene Scans und Berichte enthalten Datei- und Ordnernamen des eigenen Rechners
+# – sie gehören nie ins Repository.
+scans/
+berichte/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editoren und System
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

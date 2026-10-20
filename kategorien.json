@@ -1,0 +1,98 @@
+{
+  "_hinweis": "Regeln für classify.py. Ein Ordner erbt die Kategorie seines Elternordners, bis eine Regel greift. Pfadregeln: exakter Pfad oder Wildcard (*, ?), Groß-/Kleinschreibung egal, Umgebungsvariablen wie %LOCALAPPDATA% erlaubt. Bei mehreren Treffern gewinnt die zuerst genannte Regel. Namensregeln greifen auf Ordner-/Dateinamen überall bzw. nur unterhalb von 'unterhalb', aber nicht in Ordnern, deren geerbte Kategorie in 'nicht_in' steht.",
+
+  "kategorien": [
+    {"id": "os",    "name": "Betriebssystem",           "hell": "#2a78d6", "dunkel": "#3987e5"},
+    {"id": "prog",  "name": "Programme",                "hell": "#eb6834", "dunkel": "#d95926"},
+    {"id": "user",  "name": "Eigene Dateien",           "hell": "#1baf7a", "dunkel": "#199e70"},
+    {"id": "cache", "name": "Caches & Temp",            "hell": "#eda100", "dunkel": "#c98500"},
+    {"id": "data",  "name": "Programmdaten",            "hell": "#e87ba4", "dunkel": "#d55181"},
+    {"id": "dev",   "name": "Entwicklung",              "hell": "#008300", "dunkel": "#008300"},
+    {"id": "sys",   "name": "System-reserviert",        "hell": "#6250d6", "dunkel": "#9085e9"},
+    {"id": "other", "name": "Sonstiges / kein Zugriff", "hell": "#898781", "dunkel": "#898781"}
+  ],
+  "standard": "other",
+  "standard_andere_laufwerke": "user",
+
+  "pfadregeln": [
+    ["?:\\$Recycle.Bin", "cache"],
+    ["?:\\System Volume Information", "sys"],
+    ["?:\\FOUND.0??", "sys"],
+    ["?:\\Program Files", "prog"],
+    ["?:\\Program Files (x86)", "prog"],
+    ["?:\\WindowsApps", "prog"],
+    ["?:\\WpSystem", "prog"],
+    ["?:\\SteamLibrary", "prog"],
+    ["?:\\XboxGames", "prog"],
+
+    ["C:\\pagefile.sys", "sys"],
+    ["C:\\hiberfil.sys", "sys"],
+    ["C:\\swapfile.sys", "sys"],
+    ["C:\\DumpStack.log*", "sys"],
+    ["C:\\System Volume Information", "sys"],
+    ["C:\\Recovery", "sys"],
+    ["C:\\Windows\\Installer", "sys"],
+
+    ["C:\\$Recycle.Bin", "cache"],
+    ["C:\\$WinREAgent", "cache"],
+    ["C:\\Windows\\Temp", "cache"],
+    ["C:\\Windows\\SoftwareDistribution\\Download", "cache"],
+    ["C:\\Windows\\Prefetch", "cache"],
+    ["C:\\Windows\\Logs", "cache"],
+    ["C:\\Windows\\Panther", "cache"],
+    ["%TEMP%", "cache"],
+    ["%LOCALAPPDATA%\\npm-cache", "cache"],
+    ["%LOCALAPPDATA%\\pip\\Cache", "cache"],
+    ["%LOCALAPPDATA%\\uv\\cache", "cache"],
+    ["%LOCALAPPDATA%\\CrashDumps", "cache"],
+    ["%LOCALAPPDATA%\\D3DSCache", "cache"],
+    ["%LOCALAPPDATA%\\Microsoft\\Windows\\INetCache", "cache"],
+    ["%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer", "cache"],
+    ["%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles", "cache"],
+    ["%LOCALAPPDATA%\\NVIDIA\\DXCache", "cache"],
+    ["%USERPROFILE%\\.cache", "cache"],
+
+    ["C:\\Windows", "os"],
+    ["C:\\Users\\Default", "os"],
+    ["C:\\PerfLogs", "os"],
+    ["C:\\Intel", "os"],
+
+    ["C:\\Program Files", "prog"],
+    ["C:\\Program Files (x86)", "prog"],
+    ["C:\\Python3*", "prog"],
+    ["C:\\nvm4w", "prog"],
+    ["%LOCALAPPDATA%\\Programs", "prog"],
+    ["%LOCALAPPDATA%\\Microsoft\\WindowsApps", "prog"],
+    ["%LOCALAPPDATA%\\nvm", "prog"],
+    ["%USERPROFILE%\\.local\\bin", "prog"],
+
+    ["%USERPROFILE%\\projects", "dev"],
+    ["%USERPROFILE%\\node_modules", "dev"],
+    ["%LOCALAPPDATA%\\Arduino15", "dev"],
+    ["%USERPROFILE%\\STM32Cube", "dev"],
+
+    ["C:\\ProgramData", "data"],
+    ["%USERPROFILE%\\AppData", "data"],
+    ["%USERPROFILE%\\.*", "data"],
+    ["C:\\Users\\Public", "user"],
+    ["C:\\Users\\*", "user"]
+  ],
+
+  "namensregeln": [
+    {"namen": ["node_modules", ".git", "__pycache__", ".venv", "venv", ".tox", ".mypy_cache", ".pytest_cache", ".gradle", ".pio"], "kategorie": "dev", "nicht_in": ["prog", "os", "sys"]},
+    {"namen": ["Cache", "Code Cache", "GPUCache", "cache2", "ShaderCache", "GrShaderCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "CacheStorage", "ScriptCache", "Crashpad", "CachedData", "logs"],
+     "kategorie": "cache", "unterhalb": ["%LOCALAPPDATA%", "%APPDATA%"]}
+  ],
+
+  "dateitypen": {
+    "_hinweis": "Nur für die Kategorie 'Eigene Dateien'. Reihenfolge = Farbreihenfolge. Nicht aufgeführte Endungen landen in 'Sonstige'.",
+    "Dokumente": ["pdf", "doc", "docx", "odt", "rtf", "txt", "md", "xls", "xlsx", "xlsm", "csv", "ods", "ppt", "pptx", "odp", "one", "msg", "eml", "epub", "pages", "numbers"],
+    "Bilder": ["jpg", "jpeg", "png", "gif", "bmp", "tif", "tiff", "heic", "heif", "webp", "svg", "cr2", "cr3", "nef", "arw", "dng", "psd", "ico", "xcf"],
+    "Videos": ["mp4", "mov", "avi", "mkv", "wmv", "m4v", "webm", "mts", "m2ts", "3gp", "flv"],
+    "Audio": ["mp3", "wav", "flac", "m4a", "aac", "ogg", "wma", "opus", "mid", "midi", "aiff"],
+    "Archive & Installer": ["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "zst", "iso", "img", "exe", "msi", "msix", "appx", "cab", "dmg"],
+    "Code": ["py", "ipynb", "js", "mjs", "ts", "tsx", "jsx", "json", "html", "htm", "css", "c", "h", "cpp", "hpp", "cs", "java", "go", "rs", "sh", "ps1", "bat", "cmd", "yml", "yaml", "toml", "xml", "ino", "sql", "lua", "m"],
+    "Daten & Datenbanken": ["dat", "pkl", "pickle", "sqlite", "sqlite3", "db", "parquet", "feather", "h5", "hdf5", "npy", "npz", "mat", "bak", "log"],
+    "CAD & Elektronik": ["kicad_pcb", "kicad_sch", "kicad_pro", "kicad_prl", "kicad_sym", "kicad_mod", "kicad_wks", "sch", "brd", "lbr", "gbr", "gtl", "gbl", "gto", "gbo", "gts", "gbs", "gtp", "gbp", "gko", "gm1", "drl", "xln", "step", "stp", "stl", "f3d", "dxf", "dwg", "iges", "igs", "asc", "asy", "raw", "cir", "net", "ioc", "elf", "hex", "map", "ld"]
+  }
+}
